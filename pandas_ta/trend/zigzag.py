@@ -48,6 +48,10 @@ def nb_rolling_hl(np_high, np_low, window_size):
 # Calculate zigzag points using pre-calculated unfiltered pivots.
 @njit(cache=True)
 def nb_zz_backtest(idx, swing, value, deviation):
+    # Safety check: empty arrays
+    if idx.size == 0 or swing.size == 0 or value.size == 0:
+        return zeros(0), zeros(0), zeros(0), zeros(0)
+    
     zz_idx = zeros_like(idx)
     zz_swing = zeros_like(swing)
     zz_value = zeros_like(value)
@@ -64,40 +68,49 @@ def nb_zz_backtest(idx, swing, value, deviation):
 
     m = idx.size
     for i in range(1, m):
+        # Safety: ensure we don't overflow
+        if zigzags >= idx.size - 1:
+            break
+            
         last_zz_value = zz_value[zigzags]
         current_dev = (value[i] - last_zz_value) / last_zz_value
 
         # print(f'{i} | P {swing[i]:.0f} : {idx[i]:.0f} , {value[i]}')
         # print(f'{len(str(i))*" "} | Last: {zz_swing[zigzags-changes]:.0f} , Dev: %{(current_dev*100):.1f}')
 
+        # Safety: ensure zigzags-changes >= 0
+        lookback_idx = max(0, zigzags - changes)
+        
         # Last point in zigzag is bottom
-        if zz_swing[zigzags-changes] == -1:
+        if zz_swing[lookback_idx] == -1:
             if swing[i] == -1:
                 # If the current pivot is lower than the last ZZ bottom:
                 # create a new point and log it as a change
                 if value[i] < zz_value[zigzags]:
-                    if zz_idx[zigzags - changes] == idx[i]:
+                    if zz_idx[lookback_idx] == idx[i]:
                         continue
                     # print(f'{len(str(i))*" "} | Change -1 : {zz_value[zigzags]} to {value[i]}')
                     zigzags += 1
                     changes += 1
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags] = 100 * current_dev
+                    if zigzags < idx.size:  # Safety check
+                        zz_idx[zigzags] = idx[i]
+                        zz_swing[zigzags] = swing[i]
+                        zz_value[zigzags] = value[i]
+                        zz_dev[zigzags] = 100 * current_dev
             else:
                 # If the deviation between pivot and the last ZZ bottom is
                 # great enough create new ZZ point.
                 if current_dev > 0.01 * deviation:
-                    if zz_idx[zigzags - changes] == idx[i]:
+                    if zz_idx[lookback_idx] == idx[i]:
                         continue
                     # print(f'{len(str(i))*" "} | new ZZ 1 {value[i]}')
                     zigzags += 1
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags] = 100 * current_dev
-                    changes = 0
+                    if zigzags < idx.size:  # Safety check
+                        zz_idx[zigzags] = idx[i]
+                        zz_swing[zigzags] = swing[i]
+                        zz_value[zigzags] = value[i]
+                        zz_dev[zigzags] = 100 * current_dev
+                        changes = 0
 
         # last point in zigzag is top
         else:
@@ -105,30 +118,32 @@ def nb_zz_backtest(idx, swing, value, deviation):
                 # If the current pivot is higher than the last ZZ top:
                 # create a new point and log it as a change
                 if value[i] > zz_value[zigzags]:
-                    if zz_idx[zigzags - changes] == idx[i]:
+                    if zz_idx[lookback_idx] == idx[i]:
                         continue
                     # print(f'{len(str(i))*" "} | Change 1 : {zz_value[zigzags]} to {value[i]}')
                     zigzags += 1
                     changes += 1
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags] = 100 * current_dev
+                    if zigzags < idx.size:  # Safety check
+                        zz_idx[zigzags] = idx[i]
+                        zz_swing[zigzags] = swing[i]
+                        zz_value[zigzags] = value[i]
+                        zz_dev[zigzags] = 100 * current_dev
             else:
                 # If the deviation between pivot and the last ZZ top is great
                 # enough create new ZZ point.
                 if current_dev < -0.01 * deviation:
-                    if zz_idx[zigzags - changes] == idx[i]:
+                    if zz_idx[lookback_idx] == idx[i]:
                         continue
                     # print(f'{len(str(i))*" "} | new ZZ -1 {value[i]}')
                     zigzags += 1
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags] = 100 * current_dev
-                    changes = 0
+                    if zigzags < idx.size:  # Safety check
+                        zz_idx[zigzags] = idx[i]
+                        zz_swing[zigzags] = swing[i]
+                        zz_value[zigzags] = value[i]
+                        zz_dev[zigzags] = 100 * current_dev
+                        changes = 0
 
-    _n = zigzags + 1
+    _n = min(zigzags + 1, idx.size)  # Safety: don't exceed array size
     return zz_idx[:_n], zz_swing[:_n], zz_value[:_n], zz_dev[:_n]
 
 
