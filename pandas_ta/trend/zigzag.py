@@ -148,86 +148,118 @@ def nb_zz_backtest(idx, swing, value, deviation):
 
 
 # Calculate zigzag points using pre-calculated unfiltered pivots.
+@njit(cache=True)
 def nb_find_zz(idx, swing, value, deviation):
-    # Safety check: empty arrays
-    if idx.size == 0 or swing.size == 0 or value.size == 0:
+
+    n = idx.size
+
+    # Early exit
+    if n == 0:
         return zeros(0), zeros(0), zeros(0), zeros(0)
-    
-    zz_idx = zeros_like(idx)
+
+    # Preallocate (max possible size)
+    zz_idx   = zeros_like(idx)
     zz_swing = zeros_like(swing)
     zz_value = zeros_like(value)
-    zz_dev = zeros_like(idx)
+    zz_dev   = zeros_like(value)
 
+    # ---- INIT ----
     zigzags = 0
-    zz_idx[zigzags] = idx[-1]
-    zz_swing[zigzags] = swing[-1]
-    zz_value[zigzags] = value[-1]
-    zz_dev[zigzags] = 0
 
-    m = idx.size
-    for i in range(m - 2, -1, -1):
-        # Safety: don't overflow
-        if zigzags >= idx.size - 1:
+    zz_idx[0]   = idx[n - 1]
+    zz_swing[0] = swing[n - 1]
+    zz_value[0] = value[n - 1]
+    zz_dev[0]   = 0.0
+
+    # ---- MAIN LOOP ----
+    for i in range(n - 2, -1, -1):
+
+        # Capacity guard (BEFORE increment)
+        if zigzags + 1 >= n:
             break
-            
-        # Next point in zigzag is bottom
-        if zz_swing[zigzags] == -1:
-            if swing[i] == -1:
-                # If the current pivot is lower than the next ZZ bottom in
-                # time, move it to the pivot. As this lower value invalidates
-                # the other one
-                if value[i] < zz_value[zigzags] and zigzags > 1:
-                    if value[i] != 0:  # Prevent div by zero
-                        current_dev = (zz_value[zigzags - 1] - value[i]) / value[i]
-                        zz_idx[zigzags] = idx[i]
-                        zz_swing[zigzags] = swing[i]
-                        zz_value[zigzags] = value[i]
-                        zz_dev[zigzags - 1] = 100 * current_dev
-            else:
-                # If the deviation between pivot and the next ZZ bottom is
-                # great enough create new ZZ point.
-                if value[i] != 0:  # Prevent div by zero
-                    current_dev = (value[i] - zz_value[zigzags]) / value[i]
-                    if current_dev > 0.01 * deviation:
-                        if zz_idx[zigzags] == idx[i]:
-                            continue
-                        zigzags += 1
-                        if zigzags < idx.size:
-                            zz_idx[zigzags] = idx[i]
-                            zz_swing[zigzags] = swing[i]
-                            zz_value[zigzags] = value[i]
-                            zz_dev[zigzags - 1] = 100 * current_dev
 
-        # Next point in zigzag is top
+        cur_val   = value[i]
+        cur_swing = swing[i]
+        cur_idx   = idx[i]
+
+        # Prevent div by zero globally
+        if cur_val == 0.0:
+            continue
+
+        last_val   = zz_value[zigzags]
+        last_swing = zz_swing[zigzags]
+
+        # =========================
+        # NEXT IS BOTTOM
+        # =========================
+        if last_swing == -1:
+
+            # Lower low replaces last
+            if cur_swing == -1:
+
+                if cur_val < last_val and zigzags >= 1:
+                    prev_val = zz_value[zigzags - 1]
+                    dev = (prev_val - cur_val) / cur_val
+
+                    zz_idx[zigzags]   = cur_idx
+                    zz_swing[zigzags] = -1
+                    zz_value[zigzags] = cur_val
+                    zz_dev[zigzags - 1] = 100.0 * dev
+
+            # Opposite swing → new pivot
+            else:
+
+                dev = (cur_val - last_val) / cur_val
+
+                if dev > 0.01 * deviation and cur_idx != zz_idx[zigzags]:
+
+                    zigzags += 1
+
+                    zz_idx[zigzags]   = cur_idx
+                    zz_swing[zigzags] = 1
+                    zz_value[zigzags] = cur_val
+                    zz_dev[zigzags - 1] = 100.0 * dev
+
+        # =========================
+        # NEXT IS TOP
+        # =========================
         else:
-            if swing[i] == 1:
-                # If the current pivot is greater than the next ZZ top in time,
-                # move it to the pivot.
-                # As this higher value invalidates the other one
-                if value[i] > zz_value[zigzags] and zigzags > 1:
-                    if value[i] != 0:  # Prevent div by zero
-                        current_dev = (value[i] - zz_value[zigzags - 1]) / value[i]
-                        zz_idx[zigzags] = idx[i]
-                        zz_swing[zigzags] = swing[i]
-                        zz_value[zigzags] = value[i]
-                        zz_dev[zigzags - 1] = 100 * current_dev
-            else:
-                # If the deviation between pivot and the next ZZ top is great
-                # enough create new ZZ point.
-                if value[i] != 0:  # Prevent div by zero
-                    current_dev = (zz_value[zigzags] - value[i]) / value[i]
-                    if current_dev > 0.01 * deviation:
-                        if zz_idx[zigzags] == idx[i]:
-                            continue
-                        zigzags += 1
-                        if zigzags < idx.size:
-                            zz_idx[zigzags] = idx[i]
-                            zz_swing[zigzags] = swing[i]
-                            zz_value[zigzags] = value[i]
-                            zz_dev[zigzags - 1] = 100 * current_dev
 
-    _n = min(zigzags + 1, idx.size)
-    return zz_idx[:_n], zz_swing[:_n], zz_value[:_n], zz_dev[:_n]
+            # Higher high replaces last
+            if cur_swing == 1:
+
+                if cur_val > last_val and zigzags >= 1:
+                    prev_val = zz_value[zigzags - 1]
+                    dev = (cur_val - prev_val) / cur_val
+
+                    zz_idx[zigzags]   = cur_idx
+                    zz_swing[zigzags] = 1
+                    zz_value[zigzags] = cur_val
+                    zz_dev[zigzags - 1] = 100.0 * dev
+
+            # Opposite swing → new pivot
+            else:
+
+                dev = (last_val - cur_val) / cur_val
+
+                if dev > 0.01 * deviation and cur_idx != zz_idx[zigzags]:
+
+                    zigzags += 1
+
+                    zz_idx[zigzags]   = cur_idx
+                    zz_swing[zigzags] = -1
+                    zz_value[zigzags] = cur_val
+                    zz_dev[zigzags - 1] = 100.0 * dev
+
+
+    out_n = zigzags + 1
+
+    return (
+        zz_idx[:out_n],
+        zz_swing[:out_n],
+        zz_value[:out_n],
+        zz_dev[:out_n],
+    )
 
 
 
