@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 long_description = "An easy to use Python 3 Pandas Extension of Technical Analysis Indicators"
 
 setup(
     name = "pandas_ta",
-    packages = ["pandas_ta"],
+    packages = find_packages(),  # ✅ 모든 서브패키지 포함!
     version = "0.1.7a",
     description=long_description,
     long_description=long_description,
