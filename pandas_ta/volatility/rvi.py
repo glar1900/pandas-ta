@@ -26,7 +26,7 @@ def _rvi(source, length, scalar, mode, drift):
     pos_avg = ma(mode, pos_std, length=length)
     neg_avg = ma(mode, neg_std, length=length)
 
-    result = scalar * pos_avg / (pos_avg + neg_avg)
+    result = scalar * pos_avg / (pos_avg + neg_avg + 1e-10)
     return result
 
 
@@ -99,8 +99,8 @@ def rvi(
     else:
         rvi = _rvi(close, length, scalar, mamode, drift)
 
-    if all(isnan(rvi)):
-        return  # Emergency Break
+    # if all(isnan(rvi)):
+    #     return  # Emergency Break
 
     # Offset
     if offset != 0:
