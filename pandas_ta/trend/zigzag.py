@@ -148,7 +148,7 @@ def nb_zz_backtest(idx, swing, value, deviation):
 
 
 # Calculate zigzag points using pre-calculated unfiltered pivots.
-@njit(cache=True)
+@njit(cache=True, boundscheck=True)
 def nb_find_zz(idx, swing, value, deviation):
     # Safety check: empty arrays
     if idx.size == 0 or swing.size == 0 or value.size == 0:
