@@ -61,9 +61,13 @@ def rvgi(
     # Prevent division by zero
     rvgi = numerator / (denominator + 1e-10)
     signal = swma(rvgi, length=swma_length)
-
-    # if all(isnan(signal.to_numpy())):
-    #     return  # Emergency Break
+    
+    # Handle cases where swma returns None or calculation failed
+    if rvgi is None:
+        rvgi = Series([0.0] * len(close), index=close.index)
+        
+    if signal is None:
+        signal = Series([0.0] * len(close), index=close.index)
 
     # Offset
     if offset != 0:
