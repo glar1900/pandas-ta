@@ -330,10 +330,18 @@ def zigzag(
     np_high, np_low = high.to_numpy(), low.to_numpy()
     hli, hls, hlv = nb_rolling_hl(np_high, np_low, legs)
 
+    # Safety: if no pivots found, return None
+    if hli.size == 0 or hls.size == 0 or hlv.size == 0:
+        return None
+
     if backtest:
         zzi, zzs, zzv, zzd = nb_zz_backtest(hli, hls, hlv, deviation)
     else:
         zzi, zzs, zzv, zzd = nb_find_zz(hli, hls, hlv, deviation)
+    
+    # Safety: if no zigzag points found, return None
+    if zzi.size == 0:
+        return None
 
     swing, value, dev = nb_map_zz(zzi, zzs, zzv, zzd, np_high.size)
 
