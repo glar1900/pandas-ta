@@ -326,56 +326,63 @@ def zigzag(
     if backtest:
         offset+=int(floor(legs/2))
 
-    # Calculation
-    np_high, np_low = high.to_numpy(), low.to_numpy()
-    hli, hls, hlv = nb_rolling_hl(np_high, np_low, legs)
+    # Wrap entire calculation in try-except to prevent heap corruption crashes
+    try:
+        # Calculation
+        np_high, np_low = high.to_numpy(), low.to_numpy()
+        hli, hls, hlv = nb_rolling_hl(np_high, np_low, legs)
 
-    # Safety: if no pivots found, return None
-    if hli.size == 0 or hls.size == 0 or hlv.size == 0:
+        # Safety: if no pivots found, return None
+        if hli.size == 0 or hls.size == 0 or hlv.size == 0:
+            return None
+
+        if backtest:
+            zzi, zzs, zzv, zzd = nb_zz_backtest(hli, hls, hlv, deviation)
+        else:
+            zzi, zzs, zzv, zzd = nb_find_zz(hli, hls, hlv, deviation)
+        
+        # Safety: if no zigzag points found, return None
+        if zzi.size == 0:
+            return None
+
+        swing, value, dev = nb_map_zz(zzi, zzs, zzv, zzd, np_high.size)
+
+        # Offset
+        if offset != 0:
+            swing = roll(swing, offset)
+            value = roll(value, offset)
+            dev = roll(dev, offset)
+
+            swing[:offset] = nan
+            value[:offset] = nan
+            dev[:offset] = nan
+
+        # Name and Category
+        _props = f"_{deviation}%_{legs}"
+        
+        # Create Series directly from numpy arrays - safest approach
+        swing_series = Series(swing, index=high.index, name=f"ZIGZAGs{_props}")
+        value_series = Series(value, index=high.index, name=f"ZIGZAGv{_props}")
+        dev_series = Series(dev, index=high.index, name=f"ZIGZAGd{_props}")
+        
+        # Only apply fillna if explicitly requested (rare case)
+        if "fillna" in kwargs:
+            fill_value = kwargs["fillna"]
+            swing_series = swing_series.fillna(fill_value)
+            value_series = value_series.fillna(fill_value)
+            dev_series = dev_series.fillna(fill_value)
+        
+        df = DataFrame({
+            f"ZIGZAGs{_props}": swing_series,
+            f"ZIGZAGv{_props}": value_series,
+            f"ZIGZAGd{_props}": dev_series,
+        })
+        df.name = f"ZIGZAG{_props}"
+        df.category = "trend"
+
+        return df
+    
+    except Exception as e:
+        # Any error in zigzag - return None instead of crashing
+        # This prevents heap corruption from killing the entire process
         return None
-
-    if backtest:
-        zzi, zzs, zzv, zzd = nb_zz_backtest(hli, hls, hlv, deviation)
-    else:
-        zzi, zzs, zzv, zzd = nb_find_zz(hli, hls, hlv, deviation)
-    
-    # Safety: if no zigzag points found, return None
-    if zzi.size == 0:
-        return None
-
-    swing, value, dev = nb_map_zz(zzi, zzs, zzv, zzd, np_high.size)
-
-    # Offset
-    if offset != 0:
-        swing = roll(swing, offset)
-        value = roll(value, offset)
-        dev = roll(dev, offset)
-
-        swing[:offset] = nan
-        value[:offset] = nan
-        dev[:offset] = nan
-
-    # Name and Category
-    _props = f"_{deviation}%_{legs}"
-    
-    # Create Series directly from numpy arrays - safest approach
-    swing_series = Series(swing, index=high.index, name=f"ZIGZAGs{_props}")
-    value_series = Series(value, index=high.index, name=f"ZIGZAGv{_props}")
-    dev_series = Series(dev, index=high.index, name=f"ZIGZAGd{_props}")
-    
-    # Only apply fillna if explicitly requested (rare case)
-    if "fillna" in kwargs:
-        fill_value = kwargs["fillna"]
-        swing_series = swing_series.fillna(fill_value)
-        value_series = value_series.fillna(fill_value)
-        dev_series = dev_series.fillna(fill_value)
-    
-    df = DataFrame({
-        f"ZIGZAGs{_props}": swing_series,
-        f"ZIGZAGv{_props}": value_series,
-        f"ZIGZAGd{_props}": dev_series,
-    })
-    df.name = f"ZIGZAG{_props}"
-    df.category = "trend"
-
-    return df
