@@ -68,19 +68,20 @@ def tsi(
     # Calculate
     diff = close.diff(drift)
     slow_ema = ema(close=diff, length=slow, **kwargs)
-    if all(isnan(slow_ema)):
-        return  # Emergency Break
+    # if all(isnan(slow_ema)):
+    #     return  # Emergency Break
     fast_slow_ema = ema(close=slow_ema, length=fast, **kwargs)
 
     abs_diff = diff.abs()
     abs_slow_ema = ema(close=abs_diff, length=slow, **kwargs)
-    if all(isnan(abs_slow_ema)):
-        return  # Emergency Break
+    # if all(isnan(abs_slow_ema)):
+    #     return  # Emergency Break
     abs_fast_slow_ema = ema(close=abs_slow_ema, length=fast, **kwargs)
 
-    tsi = scalar * fast_slow_ema / abs_fast_slow_ema
-    if all(isnan(tsi)):
-        return  # Emergency Break
+    # Prevent division by zero
+    tsi = scalar * fast_slow_ema / (abs_fast_slow_ema + 1e-10)
+    # if all(isnan(tsi)):
+    #     return  # Emergency Break
     tsi_signal = ma(mamode, tsi, length=signal)
 
     # Offset

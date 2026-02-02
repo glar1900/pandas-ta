@@ -58,11 +58,12 @@ def rvgi(
     denominator = swma(high_low_range, length=swma_length) \
         .rolling(length).sum()
 
-    rvgi = numerator / denominator
+    # Prevent division by zero
+    rvgi = numerator / (denominator + 1e-10)
     signal = swma(rvgi, length=swma_length)
 
-    if all(isnan(signal.to_numpy())):
-        return  # Emergency Break
+    # if all(isnan(signal.to_numpy())):
+    #     return  # Emergency Break
 
     # Offset
     if offset != 0:

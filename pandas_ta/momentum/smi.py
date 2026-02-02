@@ -60,8 +60,8 @@ def smi(
 
     smi = tsi_df.iloc[:, 0]
     signalma = tsi_df.iloc[:, 1]
-    if all(isnan(signalma)):
-        return  # Emergency Break
+    # if all(isnan(signalma)):
+    #     return  # Emergency Break
     osc = smi - signalma
 
     # Offset
