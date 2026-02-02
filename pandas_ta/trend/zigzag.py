@@ -150,6 +150,10 @@ def nb_zz_backtest(idx, swing, value, deviation):
 # Calculate zigzag points using pre-calculated unfiltered pivots.
 @njit(cache=True)
 def nb_find_zz(idx, swing, value, deviation):
+    # Safety check: empty arrays
+    if idx.size == 0 or swing.size == 0 or value.size == 0:
+        return zeros(0), zeros(0), zeros(0), zeros(0)
+    
     zz_idx = zeros_like(idx)
     zz_swing = zeros_like(swing)
     zz_value = zeros_like(value)
@@ -163,6 +167,10 @@ def nb_find_zz(idx, swing, value, deviation):
 
     m = idx.size
     for i in range(m - 2, -1, -1):
+        # Safety: don't overflow
+        if zigzags >= idx.size - 1:
+            break
+            
         # Next point in zigzag is bottom
         if zz_swing[zigzags] == -1:
             if swing[i] == -1:
@@ -170,23 +178,26 @@ def nb_find_zz(idx, swing, value, deviation):
                 # time, move it to the pivot. As this lower value invalidates
                 # the other one
                 if value[i] < zz_value[zigzags] and zigzags > 1:
-                    current_dev = (zz_value[zigzags - 1] - value[i]) / value[i]
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags - 1] = 100 * current_dev
+                    if value[i] != 0:  # Prevent div by zero
+                        current_dev = (zz_value[zigzags - 1] - value[i]) / value[i]
+                        zz_idx[zigzags] = idx[i]
+                        zz_swing[zigzags] = swing[i]
+                        zz_value[zigzags] = value[i]
+                        zz_dev[zigzags - 1] = 100 * current_dev
             else:
                 # If the deviation between pivot and the next ZZ bottom is
                 # great enough create new ZZ point.
-                current_dev = (value[i] - zz_value[zigzags]) / value[i]
-                if current_dev > 0.01 * deviation:
-                    if zz_idx[zigzags] == idx[i]:
-                        continue
-                    zigzags += 1
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags - 1] = 100 * current_dev
+                if value[i] != 0:  # Prevent div by zero
+                    current_dev = (value[i] - zz_value[zigzags]) / value[i]
+                    if current_dev > 0.01 * deviation:
+                        if zz_idx[zigzags] == idx[i]:
+                            continue
+                        zigzags += 1
+                        if zigzags < idx.size:
+                            zz_idx[zigzags] = idx[i]
+                            zz_swing[zigzags] = swing[i]
+                            zz_value[zigzags] = value[i]
+                            zz_dev[zigzags - 1] = 100 * current_dev
 
         # Next point in zigzag is top
         else:
@@ -195,25 +206,28 @@ def nb_find_zz(idx, swing, value, deviation):
                 # move it to the pivot.
                 # As this higher value invalidates the other one
                 if value[i] > zz_value[zigzags] and zigzags > 1:
-                    current_dev = (value[i] - zz_value[zigzags - 1]) / value[i]
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags - 1] = 100 * current_dev
+                    if value[i] != 0:  # Prevent div by zero
+                        current_dev = (value[i] - zz_value[zigzags - 1]) / value[i]
+                        zz_idx[zigzags] = idx[i]
+                        zz_swing[zigzags] = swing[i]
+                        zz_value[zigzags] = value[i]
+                        zz_dev[zigzags - 1] = 100 * current_dev
             else:
                 # If the deviation between pivot and the next ZZ top is great
                 # enough create new ZZ point.
-                current_dev = (zz_value[zigzags] - value[i]) / value[i]
-                if current_dev > 0.01 * deviation:
-                    if zz_idx[zigzags] == idx[i]:
-                        continue
-                    zigzags += 1
-                    zz_idx[zigzags] = idx[i]
-                    zz_swing[zigzags] = swing[i]
-                    zz_value[zigzags] = value[i]
-                    zz_dev[zigzags - 1] = 100 * current_dev
+                if value[i] != 0:  # Prevent div by zero
+                    current_dev = (zz_value[zigzags] - value[i]) / value[i]
+                    if current_dev > 0.01 * deviation:
+                        if zz_idx[zigzags] == idx[i]:
+                            continue
+                        zigzags += 1
+                        if zigzags < idx.size:
+                            zz_idx[zigzags] = idx[i]
+                            zz_swing[zigzags] = swing[i]
+                            zz_value[zigzags] = value[i]
+                            zz_dev[zigzags - 1] = 100 * current_dev
 
-    _n = zigzags + 1
+    _n = min(zigzags + 1, idx.size)
     return zz_idx[:_n], zz_swing[:_n], zz_value[:_n], zz_dev[:_n]
 
 
@@ -227,6 +241,9 @@ def nb_map_zz(idx, swing, value, deviation, n):
 
     for j, i in enumerate(idx):
         i = int(i)
+        # Safety: ensure i is within bounds
+        if i >= n or i < 0:
+            continue
         swing_map[i] = swing[j]
         value_map[i] = value[j]
         dev_map[i] = deviation[j]
