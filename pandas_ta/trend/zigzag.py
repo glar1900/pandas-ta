@@ -332,9 +332,19 @@ def zigzag(
 
     # Fill
     if "fillna" in kwargs:
+        # swing, value, dev are NumPy arrays - convert to Series first
+        swing = Series(swing, index=high.index)
+        value = Series(value, index=high.index)
+        dev = Series(dev, index=high.index)
+        
         swing.fillna(kwargs["fillna"], inplace=True)
         value.fillna(kwargs["fillna"], inplace=True)
         dev.fillna(kwargs["fillna"], inplace=True)
+    else:
+        # Convert to Series for DataFrame creation
+        swing = Series(swing, index=high.index)
+        value = Series(value, index=high.index)
+        dev = Series(dev, index=high.index)
 
     # Name and Category
     _props = f"_{deviation}%_{legs}"
