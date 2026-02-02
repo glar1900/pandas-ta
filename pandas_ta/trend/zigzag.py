@@ -347,30 +347,26 @@ def zigzag(
         value[:offset] = nan
         dev[:offset] = nan
 
-    # Fill
-    if "fillna" in kwargs:
-        # swing, value, dev are NumPy arrays - convert to Series first
-        swing = Series(swing, index=high.index)
-        value = Series(value, index=high.index)
-        dev = Series(dev, index=high.index)
-        
-        swing.fillna(kwargs["fillna"], inplace=True)
-        value.fillna(kwargs["fillna"], inplace=True)
-        dev.fillna(kwargs["fillna"], inplace=True)
-    else:
-        # Convert to Series for DataFrame creation
-        swing = Series(swing, index=high.index)
-        value = Series(value, index=high.index)
-        dev = Series(dev, index=high.index)
-
     # Name and Category
     _props = f"_{deviation}%_{legs}"
-    data = {
-        f"ZIGZAGs{_props}": swing,
-        f"ZIGZAGv{_props}": value,
-        f"ZIGZAGd{_props}": dev,
-    }
-    df = DataFrame(data, index=high.index)
+    
+    # Create Series directly from numpy arrays - safest approach
+    swing_series = Series(swing, index=high.index, name=f"ZIGZAGs{_props}")
+    value_series = Series(value, index=high.index, name=f"ZIGZAGv{_props}")
+    dev_series = Series(dev, index=high.index, name=f"ZIGZAGd{_props}")
+    
+    # Only apply fillna if explicitly requested (rare case)
+    if "fillna" in kwargs:
+        fill_value = kwargs["fillna"]
+        swing_series = swing_series.fillna(fill_value)
+        value_series = value_series.fillna(fill_value)
+        dev_series = dev_series.fillna(fill_value)
+    
+    df = DataFrame({
+        f"ZIGZAGs{_props}": swing_series,
+        f"ZIGZAGv{_props}": value_series,
+        f"ZIGZAGd{_props}": dev_series,
+    })
     df.name = f"ZIGZAG{_props}"
     df.category = "trend"
 
