@@ -7,7 +7,7 @@ from pandas_ta.utils import v_bool, v_offset, v_pos_default, v_series
 
 
 def dpo(
-    close: Series, length: Int = None, centered: bool = True,
+    close: Series, length: Int = None, centered: bool = False,
     offset: Int = None, **kwargs: DictLike
 ) -> Series:
     """Detrend Price Oscillator
@@ -23,7 +23,7 @@ def dpo(
         close (Series): ```close``` Series
         length (int): The period. Default: ```20```
         centered (bool): Shift the dpo back by ```int(0.5 * length) + 1```.
-            Set to ```False``` to remove data leakage. Default: ```True```
+            Set to ```False``` to remove data leakage. Default: ```False```
         offset (int): Post shift. Default: ```0```
 
     Other Parameters:
@@ -42,7 +42,7 @@ def dpo(
     if close is None:
         return
 
-    centered = v_bool(centered, True)
+    centered = v_bool(centered, False)
     offset = v_offset(offset)
 
     # Calculate

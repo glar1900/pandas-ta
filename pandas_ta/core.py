@@ -1529,7 +1529,7 @@ class AnalysisIndicators(object):
         result = decreasing(close=close, length=length, strict=strict, asint=asint, offset=offset, **kwargs)
         return self._post_process(result, **kwargs)
 
-    def dpo(self, length=None, centered=True, offset=None, **kwargs):
+    def dpo(self, length=None, centered=False, offset=None, **kwargs):
         close = self._get_column(kwargs.pop("close", "close"))
         result = dpo(close=close, length=length, centered=centered, offset=offset, **kwargs)
         return self._post_process(result, **kwargs)
